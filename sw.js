@@ -1,36 +1,31 @@
-// Rx–Homeo CaseMaster Pro - Service Worker
-const CACHE_NAME = 'homeocare-v2026.10';
-const ASSETS_TO_CACHE = [
+// Rx–Homeo CaseMaster Pro - Offline Resilient Service Worker
+const CACHE_NAME = 'homeocare-offline-v1';
+
+const STATIC_ASSETS = [
   './',
   './index.html',
   './manifest.webmanifest',
   './icon.svg',
   './icon-192.png',
-  './icon-512.png',
-  'https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css',
-  'https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js',
-  'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css',
-  'https://fonts.googleapis.com/css2?family=Hind+Siliguri:wght@400;500;600;700&display=swap'
+  './icon-512.png'
 ];
 
+// ইনস্টল হওয়ার সময় লোকাল ফাইল ক্যাশ করা
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
-      console.log('[SW] Pre-caching offline assets...');
-      return cache.addAll(ASSETS_TO_CACHE).catch(err => {
-        console.warn('[SW] Non-blocking cache warning:', err);
-      });
+      return cache.addAll(STATIC_ASSETS);
     }).then(() => self.skipWaiting())
   );
 });
 
+// পুরনো ক্যাশ ডিলিট করা
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys().then((keys) => {
       return Promise.all(
         keys.map((key) => {
           if (key !== CACHE_NAME) {
-            console.log('[SW] Deleting old cache:', key);
             return caches.delete(key);
           }
         })
@@ -39,21 +34,23 @@ self.addEventListener('activate', (event) => {
   );
 });
 
+// Cache First, Network Fallback (সব ধরনের সিডিএন ও আইকন ফন্ট সহ)
 self.addEventListener('fetch', (event) => {
   if (event.request.method !== 'GET') return;
+
   event.respondWith(
     caches.match(event.request).then((cachedResponse) => {
       if (cachedResponse) {
         return cachedResponse;
       }
       return fetch(event.request).then((networkResponse) => {
-        if (!networkResponse || networkResponse.status !== 200 || networkResponse.type === 'opaque') {
-          return networkResponse;
+        // সফল নেটওয়ার্ক রেসপন্স (এমনকি সিডিএন ও ফন্ট ফাইল) ক্যাশে ঢুকিয়ে নেওয়া
+        if (networkResponse && (networkResponse.status === 200 || networkResponse.type === 'opaque')) {
+          const responseClone = networkResponse.clone();
+          caches.open(CACHE_NAME).then((cache) => {
+            cache.put(event.request, responseClone);
+          });
         }
-        const responseToCache = networkResponse.clone();
-        caches.open(CACHE_NAME).then((cache) => {
-          cache.put(event.request, responseToCache);
-        });
         return networkResponse;
       }).catch(() => {
         if (event.request.mode === 'navigate') {

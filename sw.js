@@ -6,8 +6,8 @@ const STATIC_ASSETS = [
   './index.html',
   './manifest.webmanifest',
   './icon.svg',
-  './icon-192.png',
-  './icon-512.png'
+  './minsha_rx_homeo_192.png',
+  './minsha_rx_homeo_512.png'
 ];
 
 // ইনস্টল হওয়ার সময় লোকাল ফাইল ক্যাশ করা
